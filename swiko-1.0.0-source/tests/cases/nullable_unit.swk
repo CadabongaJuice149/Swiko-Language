@@ -1,0 +1,12 @@
+fun optionalUnit(): Unit? {
+}
+fun explicitUnit(): Unit? {
+    return
+}
+fun absentUnit(): Unit? {
+    return null
+}
+print(optionalUnit())
+print(explicitUnit())
+print(absentUnit())
+print(absentUnit() ?? optionalUnit())

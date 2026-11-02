@@ -1,0 +1,20 @@
+var total = 0
+var i = 0
+while i < 4 {
+    val next = i + 1
+    total = total + next
+    i = next
+}
+print(total)
+val title = "outer"
+if true {
+    val title = "inner"
+    print(title)
+}
+print(title)
+if (false) {
+    print("wrong")
+}
+else {
+    print("else")
+}

@@ -1,0 +1,2 @@
+val value: Bool? = true
+print(!value)

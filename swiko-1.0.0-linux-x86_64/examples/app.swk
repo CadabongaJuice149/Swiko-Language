@@ -1,0 +1,16 @@
+fun subtotal(price: Int, quantity: Int): Int {
+    return price * quantity
+}
+
+val customer: String? = null
+val amount = subtotal(1250, 3)
+print("Welcome, " + (customer ?? "Guest"))
+print("Order total in cents:")
+print(amount)
+
+var processed = 0
+while processed < 3 {
+    processed = processed + 1
+}
+print("Items processed:")
+print(processed)

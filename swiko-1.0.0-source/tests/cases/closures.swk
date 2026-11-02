@@ -1,0 +1,18 @@
+var outer = 2
+fun observe(): Int {
+    return outer
+}
+fun caller(): Int {
+    val outer = 99
+    return observe()
+}
+print(caller())
+outer = 7
+print(observe())
+fun enclosing(x: Int): Int {
+    fun nested(y: Int): Int {
+        return x + y
+    }
+    return nested(5)
+}
+print(enclosing(10))

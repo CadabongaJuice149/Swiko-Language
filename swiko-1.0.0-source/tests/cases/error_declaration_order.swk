@@ -1,0 +1,2 @@
+print(later())
+fun later(): Int { return 42 }

@@ -1,0 +1,9 @@
+fun label(value: String?): String {
+    return value ?? "missing"
+}
+fun absent(): Int? {
+    return null
+}
+print(label(null))
+print(label("present"))
+print(absent() ?? 42)

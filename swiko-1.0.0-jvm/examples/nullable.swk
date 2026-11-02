@@ -1,0 +1,4 @@
+var nickname: String? = null
+print(nickname ?? "Guest")
+nickname = "Ada"
+print("Welcome, " + (nickname ?? "Guest"))

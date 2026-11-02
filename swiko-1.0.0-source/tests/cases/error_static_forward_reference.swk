@@ -1,0 +1,2 @@
+fun earlier(): Int { return later() }
+fun later(): Int { return 1 }

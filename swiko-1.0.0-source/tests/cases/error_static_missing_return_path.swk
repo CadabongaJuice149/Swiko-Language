@@ -1,0 +1,3 @@
+fun incomplete(value: Bool): Int {
+    if value { return 1 }
+}

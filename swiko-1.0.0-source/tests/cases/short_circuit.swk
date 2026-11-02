@@ -1,0 +1,14 @@
+fun fail(): Bool {
+    print(1 / 0)
+    return true
+}
+print(false && fail())
+print(true || fail())
+var calls = 0
+fun count(): Bool {
+    calls = calls + 1
+    return true
+}
+print(true && count())
+print(false || count())
+print(calls)

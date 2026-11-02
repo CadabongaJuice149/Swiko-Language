@@ -1,0 +1,2 @@
+fun value(): Int { return 1 }
+value = 2

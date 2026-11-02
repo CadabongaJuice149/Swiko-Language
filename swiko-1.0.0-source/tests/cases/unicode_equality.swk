@@ -1,0 +1,5 @@
+// The second accented spelling uses a combining acute accent.
+print("é" == "é")
+print("é" != "é")
+print("é" == "é")
+print("世界" == "世界")

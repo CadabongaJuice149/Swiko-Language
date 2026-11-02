@@ -1,0 +1,2 @@
+val value: String? = "text"
+print(value + "!")

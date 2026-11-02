@@ -1,0 +1,2 @@
+val language = "Swiko"
+print("Hello from " + language + "!")
