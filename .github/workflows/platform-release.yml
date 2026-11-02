@@ -137,6 +137,9 @@ jobs:
         run: |
           set -euo pipefail
           echo "SWIKO_SWIFTC=$(command -v swiftc)" >> "$GITHUB_ENV"
+          if [ "$RUNNER_OS" = macOS ]; then
+            echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+          fi
 
       - name: Select Swift compiler (Windows)
         if: env.SWIKO_BACKEND == 'all' && runner.os == 'Windows'
