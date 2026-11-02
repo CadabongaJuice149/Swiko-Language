@@ -141,6 +141,18 @@ jobs:
           Import-Module (Join-Path $installation 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
           Enter-VsDevShell -VsInstallPath $installation -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64 -winsdk=$sdkVersion" | Out-Null
           if ($env:WindowsSDKVersion.TrimEnd('\') -ne $sdkVersion) { throw 'Windows SDK selection failed' }
+          $swiftShare = Join-Path $env:SDKROOT 'usr\share'
+          $moduleMaps = @(
+            @{ Name = 'ucrt.modulemap'; Destination = (Join-Path $sdkRoot "Include\$sdkVersion\ucrt\module.modulemap") }
+            @{ Name = 'winsdk.modulemap'; Destination = (Join-Path $sdkRoot "Include\$sdkVersion\um\module.modulemap") }
+            @{ Name = 'visualc.modulemap'; Destination = (Join-Path $env:VCToolsInstallDir 'include\module.modulemap') }
+            @{ Name = 'visualc.apinotes'; Destination = (Join-Path $env:VCToolsInstallDir 'include\visualc.apinotes') }
+          )
+          foreach ($item in $moduleMaps) {
+            $source = Join-Path $swiftShare $item.Name
+            if (-not (Test-Path $source)) { throw "Swift SDK support metadata is missing: $source" }
+            Copy-Item -LiteralPath $source -Destination $item.Destination -Force
+          }
           foreach ($name in @('INCLUDE', 'LIB', 'LIBPATH', 'WindowsSdkDir', 'WindowsSDKVersion', 'WindowsSDKLibVersion', 'UniversalCRTSdkDir', 'UCRTVersion', 'VCToolsInstallDir', 'VCToolsVersion', 'VSINSTALLDIR', 'VCINSTALLDIR')) {
             $value = [Environment]::GetEnvironmentVariable($name, 'Process')
             if ($value) { "$name=$value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
