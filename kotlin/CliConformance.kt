@@ -1,10 +1,13 @@
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.*
 
 /** Black-box CLI, UTF-8, source-normalization, and input-limit release checks. */
 fun main(arguments: Array<String>) {
+    // Windows' legacy ProcessBuilder mode does not escape embedded quotes.
+    System.setProperty("jdk.lang.Process.allowAmbiguousCommands", "false")
     if (arguments.size != 3) {
         System.err.println("Usage: cli-conformance <swiko.jar> <swiko-native|--jvm-only> <project-root>")
         kotlin.system.exitProcess(2)
@@ -35,7 +38,12 @@ fun main(arguments: Array<String>) {
         val stdout = temporary.resolve("stdout-$id")
         val stderr = temporary.resolve("stderr-$id")
         stdin.writeBytes(input)
-        val process = ProcessBuilder(command + options).directory(temporary.toFile())
+        val windowsJava = javaName == "java.exe" && command.first() == java
+        val transportedOptions = if (windowsJava && options.isNotEmpty() && options.first() != "--utf8-args") {
+            val payload = options.joinToString("\u0000", postfix = "\u0000").toByteArray(Charsets.UTF_8)
+            listOf("--utf8-args", Base64.getEncoder().encodeToString(payload))
+        } else options
+        val process = ProcessBuilder(command + transportedOptions).directory(temporary.toFile())
             .redirectInput(stdin.toFile()).redirectOutput(stdout.toFile()).redirectError(stderr.toFile()).start()
         val complete = process.waitFor(15, TimeUnit.SECONDS)
         if (!complete) { process.destroyForcibly(); process.waitFor() }
@@ -96,6 +104,11 @@ fun main(arguments: Array<String>) {
             test("unicode-path-with-spaces", listOf(unicodeFile.toString())) { it.status == 0 && it.out == "世界🙂\n" && it.err.isEmpty() }
             test("escaped-filename", listOf("--", hyphenFile.fileName.toString())) { it.status == 0 && it.out == "42\n" && it.err.isEmpty() }
             test("eval", listOf("--eval", valid)) { it.status == 0 && it.out == "42\n" && it.err.isEmpty() }
+            val transported = Base64.getEncoder().encodeToString("--eval\u0000print(\"世界🙂\")\u0000".toByteArray(Charsets.UTF_8))
+            test("utf8-argument-transport", listOf("--utf8-args", transported)) { it.status == 0 && it.out == "世界🙂\n" && it.err.isEmpty() }
+            test("invalid-argument-transport", listOf("--utf8-args", "!!!")) { it.status == 2 && it.out.isEmpty() }
+            test("unterminated-argument-transport", listOf("--utf8-args", "YWJj")) { it.status == 2 && it.out.isEmpty() }
+            test("nonutf8-argument-transport", listOf("--utf8-args", "/wA=")) { it.status == 2 && it.out.isEmpty() }
             test("stdin", listOf("-"), valid.toByteArray()) { it.status == 0 && it.out == "42\n" && it.err.isEmpty() }
             test("check-file", listOf("--check", validFile.toString())) { it.status == 0 && it.out.isEmpty() && it.err.isEmpty() }
             test("check-eval", listOf("--check", "--eval", valid)) { it.status == 0 && it.out.isEmpty() && it.err.isEmpty() }

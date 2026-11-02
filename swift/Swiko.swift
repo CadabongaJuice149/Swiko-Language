@@ -747,6 +747,19 @@ private func prepareSwiko(source: String) throws -> ([Statement], CheckResult) {
 private func stderr(_ text: String) { FileHandle.standardError.write(Data(text.utf8)) }
 
 private struct UsageError: Error { let message: String }
+private func decodeUtf8Arguments(_ arguments: [String]) throws -> [String] {
+    guard arguments.first == "--utf8-args" else { return arguments }
+    guard arguments.count == 2, arguments[1].utf8.count <= 1_500_000,
+          let data = Data(base64Encoded: arguments[1]) else {
+        throw UsageError(message: "--utf8-args requires one bounded Base64 payload")
+    }
+    guard data.count <= 1_100_000 else { throw UsageError(message: "Argument payload size limit exceeded") }
+    if data.isEmpty { return [] }
+    guard let text = String(data: data, encoding: .utf8), text.last == "\0" else {
+        throw UsageError(message: "Argument payload must contain NUL-terminated UTF-8 arguments")
+    }
+    return String(text.dropLast()).split(separator: "\0", omittingEmptySubsequences: false).map(String.init)
+}
 private struct CLIOptions {
     var mode = "run"
     var library = false
@@ -802,8 +815,11 @@ private func readSource(_ options: CLIOptions) throws -> String {
     return source
 }
 
-private let usage = "Usage: swiko [--check | --emit-swift | --emit-kotlin] [--library] FILE\n       swiko [--check | --emit-swift | --emit-kotlin] [--library] --eval SOURCE\n       swiko [--check | --emit-swift | --emit-kotlin] [--library] -\n       swiko --help\n       swiko --version\n"
-private let arguments = Array(CommandLine.arguments.dropFirst())
+private let usage = "Usage: swiko [--check | --emit-swift | --emit-kotlin] [--library] FILE\n       swiko [--check | --emit-swift | --emit-kotlin] [--library] --eval SOURCE\n       swiko [--check | --emit-swift | --emit-kotlin] [--library] -\n       swiko --utf8-args BASE64\n       swiko --help\n       swiko --version\n"
+private let arguments: [String]
+do { arguments = try decodeUtf8Arguments(Array(CommandLine.arguments.dropFirst())) }
+catch let error as UsageError { stderr("<cli>:1:1: error: \(error.message)\n"); exit(2) }
+catch { stderr("<cli>:1:1: error: Invalid argument payload\n"); exit(2) }
 if arguments == ["--version"] { Swift.print("Swiko 1.0.1") }
 else if arguments == ["--help"] { Swift.print(usage, terminator: "") }
 else {

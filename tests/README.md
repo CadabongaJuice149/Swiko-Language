@@ -1,5 +1,11 @@
 # Shared conformance tests
 
+On Windows, Java subprocess arguments use the documented `--utf8-args` transport
+so the JDK launcher's ANSI conversion cannot corrupt Unicode before Swiko sees
+it. Native process tests select strict Windows quote escaping. These adapters
+preserve the same argument values; source, output, and diagnostic assertions are
+unchanged. Explicit malformed and Unicode transport cases run on every platform.
+
 Every `.swk` fixture in `cases/` has exactly one expected result:
 
 - `.out`: the complete standard output of a successful run, including newlines.

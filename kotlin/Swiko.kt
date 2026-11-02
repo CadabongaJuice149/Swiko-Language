@@ -1004,6 +1004,21 @@ fun runSwiko(source: String): String {
 }
 
 private class UsageError(message: String) : Exception(message)
+/** ASCII-safe transport for launchers that narrow Windows command-line text. */
+private fun decodeUtf8Arguments(arguments: Array<String>): Array<String> {
+    if (arguments.firstOrNull() != "--utf8-args") return arguments
+    if (arguments.size != 2 || arguments[1].length > 1_500_000) throw UsageError("--utf8-args requires one bounded Base64 payload")
+    val data = try { java.util.Base64.getDecoder().decode(arguments[1]) }
+    catch (_: IllegalArgumentException) { throw UsageError("Invalid Base64 argument payload") }
+    if (data.size > 1_100_000) throw UsageError("Argument payload size limit exceeded")
+    if (data.isEmpty()) return emptyArray()
+    val text = try {
+        Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(data)).toString()
+    } catch (_: java.nio.charset.CharacterCodingException) { throw UsageError("Argument payload is not valid UTF-8") }
+    if (!text.endsWith('\u0000')) throw UsageError("Argument payload must contain NUL-terminated UTF-8 arguments")
+    return text.dropLast(1).split('\u0000').toTypedArray()
+}
 private data class Options(val mode: String, val library: Boolean, val input: String, val eval: String?)
 private fun options(args: Array<String>): Options {
     var mode = "run"
@@ -1057,6 +1072,7 @@ private val usage = """
 Usage: swiko [--check | --emit-swift | --emit-kotlin] [--library] FILE
        swiko [--check | --emit-swift | --emit-kotlin] [--library] --eval SOURCE
        swiko [--check | --emit-swift | --emit-kotlin] [--library] -
+       swiko --utf8-args BASE64
        swiko --help | --version
 """.trimIndent()
 
@@ -1065,7 +1081,12 @@ private fun writeUtf8(output: java.io.OutputStream, text: String) {
     output.flush()
 }
 
-fun main(args: Array<String>) {
+fun main(rawArguments: Array<String>) {
+    val args = try { decodeUtf8Arguments(rawArguments) }
+    catch (error: UsageError) {
+        writeUtf8(System.err, "error: ${error.message}\n$usage\n")
+        exitProcess(2)
+    }
     if (args.contentEquals(arrayOf("--help"))) { writeUtf8(System.out, usage + "\n"); return }
     if (args.contentEquals(arrayOf("--version"))) { writeUtf8(System.out, "Swiko 1.0.1\n"); return }
     val options = try { options(args) }
@@ -1088,6 +1109,9 @@ fun main(args: Array<String>) {
         exitProcess(1)
     } catch (_: StackOverflowError) {
         writeUtf8(System.err, "$filename:1:1: error: Source or execution nesting limit exceeded\n")
+        exitProcess(1)
+    } catch (_: java.nio.file.InvalidPathException) {
+        writeUtf8(System.err, "$filename:1:1: error: Invalid source path; Windows Java launchers can use --utf8-args for Unicode arguments\n")
         exitProcess(1)
     } catch (error: java.io.IOException) {
         writeUtf8(System.err, "$filename:1:1: error: Cannot read source file (${error.javaClass.simpleName})\n")

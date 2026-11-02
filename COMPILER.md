@@ -18,6 +18,20 @@ swiko --help
 swiko --version
 ```
 
+For tools that need byte-exact Unicode argument transport, both frontends also
+accept `--utf8-args BASE64`. Encode the complete ordinary argument array as UTF-8,
+terminate every argument with a NUL byte, concatenate the records, then encode
+those bytes as standard Base64. An empty array is encoded as zero bytes. Invalid
+Base64, invalid UTF-8, missing terminators, and oversized payloads are usage
+errors. The decoded arguments go through the normal CLI and language checks;
+transport is expanded once, without recursion.
+
+This is useful with Windows Java launchers, which can narrow ordinary command
+lines to the system ANSI code page before `main` receives them. ASCII arguments
+and source read from UTF-8 files or stdin work normally; tools passing Unicode
+filenames or inline source can use this transport. Native Windows clients should
+also use correct Windows argument quoting when starting a child process.
+
 Check and emit modes also accept `--eval SOURCE` or `-`. Exactly one source and
 at most one mode are allowed. Library mode requires an emit mode. `--` ends
 options, allowing `-- --program.swk`. Unknown, duplicate, conflicting, or

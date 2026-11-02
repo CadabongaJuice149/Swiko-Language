@@ -47,6 +47,13 @@ swiko --help
 swiko --version
 ```
 
+Both frontends additionally accept `--utf8-args BASE64` as an ASCII-safe launcher
+transport. Decode standard Base64 into strict UTF-8 NUL-terminated argument
+records, then apply the ordinary CLI rules exactly once. The empty byte sequence
+represents zero arguments. Maximum encoded characters: 1,500,000; maximum decoded
+bytes: 1,100,000. Invalid transport is a usage error. This avoids Windows Java's
+external ANSI argument conversion; it does not change the language or its limits.
+
 Default mode runs the program. FILE is one UTF-8 .swk source file; `-` reads
 UTF-8 standard input. `--check` produces no output on success. Emit modes write
 generated UTF-8 source to stdout. `--library` is valid only with an emit mode.
