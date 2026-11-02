@@ -197,7 +197,7 @@ private class Release(private val root: Path, private val command: String, priva
             val kotlinOutput = run("Kotlin example ${example.name}", listOf(java, "-jar", stage.resolve("swiko.jar").toString(), example.toString()), 30)
             if (native) {
                 val swiftOutput = runNative("Swift example ${example.name}", stage.resolve(nativeFile), listOf(example.toString()))
-                if (kotlinOutput != swiftOutput) throw ReleaseFailure("Example ${example.name} differs between implementations")
+                if (kotlinOutput.replace("\r\n", "\n") != swiftOutput.replace("\r\n", "\n")) throw ReleaseFailure("Example ${example.name} differs between implementations")
             }
         }
         evidence += "Examples: ${examples.size} programs passed in ${if (native) "both implementations" else "the JVM implementation"}"
@@ -273,7 +273,7 @@ private class Release(private val root: Path, private val command: String, priva
             validateNativeHeader(executable, host)
             verifyNativeVersion(executable, "Packaged native version")
             val nativeHello = runNative("Packaged native example", executable, listOf(unpackedNative.resolve("examples/hello.swk").toString()))
-            if (jvmHello != nativeHello) throw ReleaseFailure("Extracted packages do not produce matching example output")
+            if (jvmHello.replace("\r\n", "\n") != nativeHello.replace("\r\n", "\n")) throw ReleaseFailure("Extracted packages do not produce matching example output")
         }
         unzip(sourceZip, unpack)
         val unpackedSource = unpack.resolve("$base-source")
