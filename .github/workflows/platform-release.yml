@@ -125,6 +125,30 @@ jobs:
           build_arch: amd64
           cache: 'false'
 
+      - name: Select the Windows SDK compatible with Swift 6.0.3
+        if: env.SWIKO_BACKEND == 'all' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdkVersion = '10.0.22621.0'
+          $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
+          if (-not (Test-Path (Join-Path $sdkRoot "Include\$sdkVersion\ucrt\wchar.h"))) {
+            throw "Required Windows SDK $sdkVersion is not installed"
+          }
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $installation = @(& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)[0]
+          if (-not $installation) { throw 'Visual Studio C++ tools were not found' }
+          Import-Module (Join-Path $installation 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
+          Enter-VsDevShell -VsInstallPath $installation -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64 -winsdk=$sdkVersion" | Out-Null
+          if ($env:WindowsSDKVersion.TrimEnd('\') -ne $sdkVersion) { throw 'Windows SDK selection failed' }
+          foreach ($name in @('INCLUDE', 'LIB', 'LIBPATH', 'WindowsSdkDir', 'WindowsSDKVersion', 'WindowsSDKLibVersion', 'UniversalCRTSdkDir', 'UCRTVersion', 'VCToolsInstallDir', 'VCToolsVersion', 'VSINSTALLDIR', 'VCINSTALLDIR')) {
+            $value = [Environment]::GetEnvironmentVariable($name, 'Process')
+            if ($value) { "$name=$value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+          }
+          (Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          (Join-Path $sdkRoot "bin\$sdkVersion\x64") | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Host "Selected Windows SDK $sdkVersion"
+
       - name: Restore JDK 21 after Swift toolchain setup
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
