@@ -21,10 +21,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: platform-release-${{ github.ref }}-${{ github.event.inputs.backend || 'all' }}
-  cancel-in-progress: true
-
 env:
   SWIKO_BACKEND: ${{ github.event.inputs.backend || 'all' }}
 
@@ -32,6 +28,9 @@ jobs:
   build:
     name: ${{ matrix.platform }} / ${{ github.event.inputs.backend || 'all' }}
     runs-on: ${{ matrix.runner }}
+    concurrency:
+      group: platform-release-${{ github.ref }}-${{ matrix.platform }}-${{ github.event.inputs.backend || 'all' }}
+      cancel-in-progress: true
     timeout-minutes: 90
     strategy:
       fail-fast: false
