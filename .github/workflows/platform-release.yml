@@ -144,8 +144,8 @@ jobs:
           $moduleMaps = @(
             @{ Name = 'ucrt.modulemap'; Destination = (Join-Path $sdkRoot "Include\$sdkVersion\ucrt\module.modulemap") }
             @{ Name = 'winsdk.modulemap'; Destination = (Join-Path $sdkRoot "Include\$sdkVersion\um\module.modulemap") }
-            @{ Name = 'visualc.modulemap'; Destination = (Join-Path $env:VCToolsInstallDir 'include\module.modulemap') }
-            @{ Name = 'visualc.apinotes'; Destination = (Join-Path $env:VCToolsInstallDir 'include\visualc.apinotes') }
+            @{ Name = 'vcruntime.modulemap'; Destination = (Join-Path $env:VCToolsInstallDir 'include\module.modulemap') }
+            @{ Name = 'vcruntime.apinotes'; Destination = (Join-Path $env:VCToolsInstallDir 'include\vcruntime.apinotes') }
           )
           foreach ($item in $moduleMaps) {
             $source = Join-Path $swiftShare $item.Name
