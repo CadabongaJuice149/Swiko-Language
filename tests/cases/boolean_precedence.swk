@@ -1,0 +1,4 @@
+print(true || false && false)
+print(!false && 2 + 3 == 5)
+print(1 + 2 < 4 == true)
+print(false != true)

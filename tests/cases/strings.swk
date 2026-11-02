@@ -1,0 +1,6 @@
+// Unicode belongs in strings, with Swift/Kotlin style escapes.
+print("Hello, " + "世界 👋")
+print("line one\nline two")
+print("tab\tquote\"slash\\")
+print("same" == "same")
+print("A" != "a")

@@ -1,0 +1,2 @@
+if true { val hidden = 42 }
+print(hidden)

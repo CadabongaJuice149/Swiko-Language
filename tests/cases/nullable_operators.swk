@@ -1,0 +1,10 @@
+var value: Int? = 4
+print((value ?? 0) + 2)
+print((value ?? 0) < 6)
+print(value == 4)
+value = null
+print(value ?? 7)
+var text: String? = "Swiko"
+print((text ?? "") + "!")
+val condition: Bool? = true
+if condition ?? false { print(!(condition ?? false)) }

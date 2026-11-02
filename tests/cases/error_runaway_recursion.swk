@@ -1,0 +1,4 @@
+fun recurse(): Int {
+    return recurse()
+}
+print(recurse())

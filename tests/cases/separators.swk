@@ -1,0 +1,3 @@
+val one = 1; var two: Int = 2; two = two + one
+if two == 3 { print("yes") } else { print("no") }
+print(two)

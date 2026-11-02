@@ -1,0 +1,234 @@
+name: Swiko platform releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: Build both implementations or the portable JVM implementation only
+        type: choice
+        options:
+          - all
+          - jvm
+        default: all
+        required: true
+  push:
+    branches:
+      - 'swiko/**'
+    tags:
+      - 'v*'
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-release-${{ github.ref }}-${{ github.event.inputs.backend || 'all' }}
+  cancel-in-progress: false
+
+env:
+  SWIKO_BACKEND: ${{ github.event.inputs.backend || 'all' }}
+
+jobs:
+  build:
+    name: ${{ matrix.platform }} / ${{ github.event.inputs.backend || 'all' }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-24.04
+            arch: X64
+          - platform: macos-arm64
+            runner: macos-15
+            arch: ARM64
+          - platform: macos-x86_64
+            runner: macos-15-intel
+            arch: X64
+          - platform: windows-x86_64
+            runner: windows-2022
+            arch: X64
+    steps:
+      - name: Check out the exact source revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Verify host architecture and version tag (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ARCH" = "${{ matrix.arch }}"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            test "$GITHUB_REF_NAME" = "v$(tr -d '\r\n' < VERSION)"
+          fi
+
+      - name: Verify host architecture and version tag (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RUNNER_ARCH -ne '${{ matrix.arch }}') { throw 'Unexpected runner architecture' }
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $version = (Get-Content -Raw VERSION).Trim()
+            if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Version tag does not match VERSION' }
+          }
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install the verified Kotlin compiler (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          kotlin_dir="$RUNNER_TEMP/swiko-kotlin"
+          mkdir -p "$kotlin_dir"
+          curl --fail --location --retry 3 --connect-timeout 30 --max-time 300 \
+            --output "$kotlin_dir/kotlin.zip" \
+            https://github.com/JetBrains/kotlin/releases/download/v2.2.21/kotlin-compiler-2.2.21.zip
+          if [ "$RUNNER_OS" = macOS ]; then
+            actual_digest="$(shasum -a 256 "$kotlin_dir/kotlin.zip" | cut -d ' ' -f 1)"
+          else
+            actual_digest="$(sha256sum "$kotlin_dir/kotlin.zip" | cut -d ' ' -f 1)"
+          fi
+          test "$actual_digest" = a623871f1cd9c938946948b70ef9170879f0758043885bbd30c32f024e511714
+          unzip -q "$kotlin_dir/kotlin.zip" -d "$kotlin_dir"
+          echo "SWIKO_KOTLINC=$kotlin_dir/kotlinc/bin/kotlinc" >> "$GITHUB_ENV"
+
+      - name: Install the verified Kotlin compiler (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $kotlinDir = Join-Path $env:RUNNER_TEMP 'swiko-kotlin'
+          New-Item -ItemType Directory -Force $kotlinDir | Out-Null
+          $archive = Join-Path $kotlinDir 'kotlin.zip'
+          Invoke-WebRequest -Uri 'https://github.com/JetBrains/kotlin/releases/download/v2.2.21/kotlin-compiler-2.2.21.zip' -OutFile $archive
+          $digest = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          if ($digest -ne 'a623871f1cd9c938946948b70ef9170879f0758043885bbd30c32f024e511714') { throw 'Kotlin compiler checksum mismatch' }
+          Expand-Archive -Path $archive -DestinationPath $kotlinDir
+          "SWIKO_KOTLINC=$(Join-Path $kotlinDir 'kotlinc\bin\kotlinc.bat')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up Swift 6.0.3 (Linux and macOS)
+        if: env.SWIKO_BACKEND == 'all' && runner.os != 'Windows'
+        uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2
+        with:
+          swift-version: '6.0.3'
+
+      - name: Set up Swift 6.0.3 (Windows)
+        if: env.SWIKO_BACKEND == 'all' && runner.os == 'Windows'
+        uses: compnerd/gha-setup-swift@57fe462cd3c7b05ae8fcff79b00719312e305257
+        with:
+          source: swift.org
+          swift-version: swift-6.0.3-release
+          swift-build: 6.0.3-RELEASE
+          build_arch: amd64
+          cache: 'false'
+
+      - name: Select Swift compiler (Unix)
+        if: env.SWIKO_BACKEND == 'all' && runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SWIKO_SWIFTC=$(command -v swiftc)" >> "$GITHUB_ENV"
+
+      - name: Select Swift compiler (Windows)
+        if: env.SWIKO_BACKEND == 'all' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          "SWIKO_SWIFTC=$((Get-Command swiftc -ErrorAction Stop).Source)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify Windows ICU provenance and collect runtime notices
+        if: env.SWIKO_BACKEND == 'all' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $swiftCompiler = (Get-Command swiftc -ErrorAction Stop).Source
+          $swiftRoot = Split-Path -Parent (Split-Path -Parent $swiftCompiler)
+          $targetJson = & $swiftCompiler -print-target-info
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the installed Swift runtime' }
+          $targetInfo = ($targetJson -join "`n") | ConvertFrom-Json
+          $searchRoots = @($env:SDKROOT, $swiftRoot, $targetInfo.paths.runtimeResourcePath) + @($targetInfo.paths.runtimeLibraryPaths)
+          $searchRoots = @($searchRoots | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Sort-Object -Unique)
+          if ($searchRoots.Count -eq 0) { throw 'No installed Swift SDK directories were found' }
+          $versionHeaders = @(
+            foreach ($searchRoot in $searchRoots) {
+              Get-ChildItem -LiteralPath $searchRoot -Filter uvernum.h -File -Recurse -ErrorAction Stop
+            }
+          ) | Sort-Object -Property FullName -Unique
+          $foundVersions = @(
+            foreach ($header in $versionHeaders) {
+              $text = Get-Content -Raw -LiteralPath $header.FullName
+              $match = [regex]::Match($text, '(?m)^\s*#\s*define\s+U_ICU_VERSION\s+"([0-9]+\.[0-9]+(?:\.[0-9]+)?)"')
+              if ($match.Success) { $match.Groups[1].Value }
+            }
+          ) | Sort-Object -Unique
+          if (@($foundVersions).Count -ne 1) { throw 'Missing or ambiguous ICU version in the installed Swift SDK; matching notices are required' }
+          $icuVersion = [string](@($foundVersions)[0])
+          $noticeRoot = Join-Path $env:GITHUB_WORKSPACE 'build/windows-runtime-notices'
+          $swiftNotices = Join-Path $noticeRoot 'swift'
+          $icuNotices = Join-Path $noticeRoot 'icu'
+          New-Item -ItemType Directory -Force -Path $swiftNotices, $icuNotices | Out-Null
+          Copy-Item -Path 'licenses/swift/*' -Destination $swiftNotices -Recurse -Force
+          $icuLicense = Join-Path $icuNotices 'LICENSE'
+          if ($icuVersion -eq '74.1') {
+            Copy-Item -LiteralPath 'licenses/icu/LICENSE' -Destination $icuLicense
+          } else {
+            $icuTag = 'release-' + $icuVersion.Replace('.', '-')
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/unicode-org/icu/$icuTag/LICENSE" -OutFile $icuLicense
+          }
+          if ((Get-Item -LiteralPath $icuLicense).Length -lt 100) { throw 'ICU upstream notice is empty or invalid' }
+          $headerDigests = @($versionHeaders | ForEach-Object { (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant() } | Sort-Object -Unique)
+          @(
+            'Windows runtime notice provenance',
+            "Swift compiler: $((& $swiftCompiler --version) -join ' ')",
+            "ICU SDK header version: $icuVersion",
+            "Upstream notice: https://raw.githubusercontent.com/unicode-org/icu/release-$($icuVersion.Replace('.', '-'))/LICENSE",
+            "Matching uvernum.h SHA256: $($headerDigests -join ', ')"
+          ) | Set-Content -LiteralPath (Join-Path $noticeRoot 'PROVENANCE.txt') -Encoding utf8
+          "SWIKO_SWIFT_NOTICES_DIR=$noticeRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $runtimeRoots = @($searchRoots) + @(
+            (Join-Path $swiftRoot 'bin'),
+            $(if ($env:SDKROOT) { Join-Path $env:SDKROOT 'usr/bin' })
+          )
+          $runtimeRoots = @($runtimeRoots | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Sort-Object -Unique)
+          "SWIKO_SWIFT_RUNTIME_DIR=$($runtimeRoots -join [IO.Path]::PathSeparator)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build, verify, and package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          "$SWIKO_KOTLINC" tools/Release.kt -jvm-target 17 -include-runtime -d build/release-tool.jar
+          java -jar build/release-tool.jar --self-test
+          java -jar build/release-tool.jar release --root . --backend "$SWIKO_BACKEND"
+
+      - name: Build, verify, and package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force build | Out-Null
+          & $env:SWIKO_KOTLINC tools/Release.kt -jvm-target 17 -include-runtime -d build/release-tool.jar
+          if ($LASTEXITCODE -ne 0) { throw 'Release-tool bootstrap failed' }
+          & java -jar build/release-tool.jar --self-test
+          if ($LASTEXITCODE -ne 0) { throw 'Release-tool self-test failed' }
+          & java -jar build/release-tool.jar release --root . --backend $env:SWIKO_BACKEND
+          if ($LASTEXITCODE -ne 0) { throw 'Release validation failed' }
+
+      - name: Upload this host's verified release
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: swiko-${{ matrix.platform }}-${{ env.SWIKO_BACKEND }}-${{ github.run_id }}
+          path: dist/swiko-*/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

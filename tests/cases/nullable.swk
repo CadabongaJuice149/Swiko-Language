@@ -1,0 +1,14 @@
+var name: String? = null
+fun fallback(): String {
+    print("fallback")
+    return "Guest"
+}
+print(name ?? fallback())
+name = "Ada"
+print(name ?? fallback())
+name = null
+print(name)
+print(null ?? null ?? "last")
+print(null == name)
+print(3 != null)
+print(null == null)

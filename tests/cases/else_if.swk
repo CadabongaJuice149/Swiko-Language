@@ -1,0 +1,14 @@
+if false {
+    print("first")
+}
+else if false {
+    print("second")
+}
+else if true {
+    print("third")
+}
+else {
+    print("fourth")
+}
+if false { print("no") }
+else { print("yes") }

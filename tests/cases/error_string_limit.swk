@@ -1,0 +1,7 @@
+var text = "x"
+var i = 0
+while i < 21 {
+    text = text + text
+    i = i + 1
+}
+print(text)

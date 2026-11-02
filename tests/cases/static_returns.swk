@@ -1,0 +1,15 @@
+fun choose(value: Bool): Int {
+    if value { return 1 } else { return 2 }
+}
+fun maybe(value: Bool): Int? {
+    if value { return 3 } else { return null }
+}
+print(choose(true))
+print(choose(false))
+print(maybe(true) ?? 4)
+print(maybe(false) ?? 4)
+val nullable: Int? = 5
+val inferred = nullable ?? 6
+print(inferred + 1)
+print(nullable == 5)
+print(null == nullable)

@@ -1,0 +1,5 @@
+fun change(value: Int): Int {
+    value = 2
+    return value
+}
+print(change(1))

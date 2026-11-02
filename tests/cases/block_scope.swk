@@ -1,0 +1,9 @@
+val value = "outer"
+{
+    val value = "inner"
+    print(value)
+    var count = 1
+    count = count + 1
+    print(count)
+}
+print(value)
