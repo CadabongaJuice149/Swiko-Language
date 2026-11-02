@@ -455,7 +455,7 @@ private fun windowsKotlinCommand(command: List<String>, java: String): List<Stri
     if (executable.extension.lowercase() !in setOf("bat", "cmd")) return listOf(executable.toString()) + command.drop(1)
     val home = executable.toRealPath().parent.parent
     check(home.resolve("lib/kotlin-compiler.jar").isRegularFile()) { "Kotlin compiler batch launcher lacks its distribution libraries: $home" }
-    return listOf(java, "-Dkotlin.home=$home", "-classpath", home.resolve("lib/*").toString(), "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler") + command.drop(1)
+    return listOf(java, "-Dkotlin.home=$home", "-classpath", home.resolve("lib").toString() + File.separator + "*", "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler") + command.drop(1)
 }
 
 private fun windowsSwiftRuntimeDirectories(swiftc: String): List<String> {

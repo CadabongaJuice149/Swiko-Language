@@ -558,7 +558,7 @@ private fun compilerCommand(arguments: List<String>): List<String> {
     if (HostPlatform.detect().os != "windows" || arguments.isEmpty() || Path.of(arguments.first()).extension.lowercase() !in setOf("bat", "cmd")) return arguments
     val home = Path.of(arguments.first()).toAbsolutePath().normalize().parent.parent
     if (!home.resolve("lib/kotlin-compiler.jar").isRegularFile()) throw ReleaseFailure("Kotlin batch selector must point inside an official compiler distribution")
-    return listOf(javaExecutable(), "-Dfile.encoding=UTF-8", "-Dkotlin.home=$home", "-cp", home.resolve("lib/*").toString(),
+    return listOf(javaExecutable(), "-Dfile.encoding=UTF-8", "-Dkotlin.home=$home", "-cp", home.resolve("lib").toString() + File.separator + "*",
         "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler") + arguments.drop(1)
 }
 
